@@ -13,3 +13,4 @@ frontend/dist/
 .vscode/
 *.log
 *.md
+!README.md
