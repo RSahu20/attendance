@@ -14,5 +14,3 @@ frontend/dist/
 *.log
 *.md
 !README.md
-backend/tests/
-frontend/src/test/
