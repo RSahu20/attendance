@@ -9,7 +9,7 @@ mandatory product/tenant/entity/module/RBAC/classification isolation.
 ## Architecture
 
 The system follows the reference architecture with seven clearly separated layers.
-See [docs/architecture.md](./docs/architecture.md) for the full diagrams showing
+See [docs/ARCHITECTURE.html](./docs/ARCHITECTURE.html) for the full diagrams showing
 isolation enforcement points, database role separation, and technology substitutions.
 
 ```
@@ -479,18 +479,3 @@ attendance/
 - External audit log archival
 - Backup/restore and observability infrastructure
 - Cloud deployment (Kubernetes, managed PostgreSQL)
-
-## Additional Documentation
-
-| Document | Contents |
-|---|---|
-| [docs/architecture.md](./docs/architecture.md) | Architecture diagrams with isolation enforcement |
-| [docs/security-model.md](./docs/security-model.md) | Security contract and RLS design |
-| [docs/canonical-storage.md](./docs/canonical-storage.md) | Storage contract and schema |
-| [docs/ingestion.md](./docs/ingestion.md) | Ingestion and normalization pipeline |
-| [docs/retrieval.md](./docs/retrieval.md) | Authorized retrieval contract |
-| [docs/generation.md](./docs/generation.md) | Grounding, citations, and confidence |
-| [docs/exports.md](./docs/exports.md) | Export behavior and lifecycle |
-| [docs/frontend.md](./docs/frontend.md) | Evaluator flow and local demo login |
-| [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) | Detailed implementation audit |
-| [COMPLETED_WORK.md](./COMPLETED_WORK.md) | Consolidated completion report |
