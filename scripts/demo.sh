@@ -97,7 +97,7 @@ PRODUCT_ID=$(echo "$CREDS" | python3 -c "import sys,json; print(json.load(sys.st
 TENANT_ID=$(echo "$CREDS" | python3 -c "import sys,json; print(json.load(sys.stdin)['tenant_id'])")
 ENTITY_ID=$(echo "$CREDS" | python3 -c "import sys,json; print(json.load(sys.stdin)['entity_id'])")
 
-echo -e "  ${GREEN}Token:${NC}      ${TOKEN:0:50}..."
+echo -e "  ${GREEN}Token:${NC}      ${TOKEN}"
 echo -e "  ${GREEN}Product ID:${NC} $PRODUCT_ID"
 echo -e "  ${GREEN}Tenant ID:${NC}  $TENANT_ID"
 echo -e "  ${GREEN}Entity ID:${NC}  $ENTITY_ID"
