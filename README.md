@@ -412,7 +412,6 @@ The two-role PostgreSQL pattern separates schema ownership from runtime access:
 
 This separation prevents the application from accidentally bypassing row-level security.
 
-See [docs/security-model.md](./docs/security-model.md) for the full security contract.
 
 ## Project Structure
 
