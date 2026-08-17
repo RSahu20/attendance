@@ -9,7 +9,7 @@ mandatory product/tenant/entity/module/RBAC/classification isolation.
 ## Architecture
 
 The system follows the reference architecture with seven clearly separated layers.
-See [docs/index.html](./docs/index.html) for the full diagrams showing
+See [index.html](./index.html) for the full diagrams showing
 isolation enforcement points, database role separation, and technology substitutions.
 
 ```
