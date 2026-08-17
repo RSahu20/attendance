@@ -12,4 +12,4 @@ frontend/dist/
 .idea/
 .vscode/
 *.log
-
+*.md
