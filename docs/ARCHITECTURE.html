@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance Intelligence — Architecture Explorer</title>
+<style>
+:root{
+  --bg:#0a0d12; --bg2:#0e1218; --panel:#12161e; --panel2:#161b24; --border:#232a36; --border-soft:#1b212b;
+  --text:#e8ecf1; --dim:#8993a4; --dim2:#5c6675;
+  --accent:#4f8cff; --accent-soft:rgba(79,140,255,.14); --accent-line:rgba(79,140,255,.55);
+  --c-app:#4f8cff; --c-ai:#35c9a3; --c-data:#e2a53d; --c-security:#e2596b; --c-ext:#9b8cff;
+  --shadow:0 8px 28px rgba(0,0,0,.35);
+  --r-sm:6px; --r-md:10px; --r-lg:14px;
+}
+[data-theme="light"]{
+  --bg:#f4f6fa; --bg2:#eef1f6; --panel:#ffffff; --panel2:#f8f9fc; --border:#dde3ee; --border-soft:#e6eaf2;
+  --text:#161a22; --dim:#5b6472; --dim2:#8991a0;
+  --accent:#3a75e0; --accent-soft:rgba(58,117,224,.10); --accent-line:rgba(58,117,224,.45);
+  --shadow:0 8px 24px rgba(30,40,60,.10);
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden;}
+button{font-family:inherit;}
+::selection{background:var(--accent-soft);}
+
+/* ---------- LAYOUT ---------- */
+#app{display:grid;grid-template-rows:56px 1fr;grid-template-columns:230px 1fr;height:100vh;}
+#topbar{grid-column:1/3;display:flex;align-items:center;gap:16px;padding:0 18px;border-bottom:1px solid var(--border);background:var(--panel);z-index:40;}
+#sidebar{grid-row:2;border-right:1px solid var(--border);background:var(--bg2);overflow-y:auto;padding:14px 10px;}
+#canvas{grid-row:2;overflow-y:auto;padding:28px 34px 80px;position:relative;}
+
+.brand{display:flex;align-items:center;gap:10px;white-space:nowrap;}
+.brand .mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),#7ee0c0);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#08101e;flex:none;}
+.brand .name{font-size:14px;font-weight:700;line-height:1.1;}
+.brand .tag{font-size:10.5px;color:var(--dim);letter-spacing:.03em;}
+
+.searchwrap{flex:1;max-width:440px;min-width:0;position:relative;}
+#searchInput{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px 12px 8px 34px;border-radius:8px;font-size:13px;outline:none;transition:border-color .15s;}
+#searchInput:focus{border-color:var(--accent);}
+.searchwrap svg.si{position:absolute;left:10px;top:50%;transform:translateY(-50%);opacity:.5;pointer-events:none;}
+.kbd{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--dim);border:1px solid var(--border);border-radius:4px;padding:1px 5px;background:var(--panel);}
+#searchResults{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);max-height:360px;overflow-y:auto;display:none;z-index:60;}
+#searchResults.show{display:block;}
+.sr-item{padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--border-soft);transition:background .1s;}
+.sr-item:last-child{border-bottom:none;}
+.sr-item:hover,.sr-item.kbdsel{background:var(--accent-soft);}
+.sr-item b{font-size:12.8px;}
+.sr-item .m{font-size:10.5px;color:var(--dim);display:flex;gap:6px;margin-top:2px;}
+.sr-item .m code{background:none;padding:0;font-size:10.5px;}
+
+.topctl{display:flex;gap:6px;margin-left:auto;align-items:center;}
+.tbtn{background:var(--panel2);border:1px solid var(--border);color:var(--dim);font-size:12px;padding:6px 11px;border-radius:7px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s;}
+.tbtn:hover{color:var(--text);border-color:var(--accent-line);}
+.tbtn.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line);}
+.icon-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--panel2);border:1px solid var(--border);border-radius:7px;cursor:pointer;color:var(--dim);}
+.icon-btn:hover{color:var(--text);border-color:var(--accent-line);}
+
+/* ---------- SIDEBAR ---------- */
+.navgroup{margin-bottom:18px;}
+.navgroup-label{font-size:10px;color:var(--dim2);text-transform:uppercase;letter-spacing:.09em;padding:0 10px;margin-bottom:6px;}
+.navitem{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:7px;font-size:13px;color:var(--dim);cursor:pointer;transition:all .12s;position:relative;}
+.navitem:hover{color:var(--text);background:var(--panel2);}
+.navitem.active{color:var(--text);background:var(--accent-soft);}
+.navitem.active::before{content:'';position:absolute;left:-10px;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--accent);}
+.navitem .dot{width:6px;height:6px;border-radius:50%;flex:none;}
+
+/* ---------- SECTION HEADER ---------- */
+.sec-head{margin-bottom:22px;}
+.sec-head h1{font-size:22px;margin:0 0 4px;letter-spacing:-.01em;}
+.sec-head p{font-size:13.3px;color:var(--dim);margin:0;max-width:640px;}
+.section{animation:fadein .25s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+/* ---------- OVERVIEW ---------- */
+.hero{background:linear-gradient(160deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:var(--r-lg);padding:32px 34px;margin-bottom:24px;}
+.hero .kicker{font-size:11px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;font-weight:700;margin-bottom:8px;}
+.hero h1{font-size:26px;margin:0 0 8px;letter-spacing:-.01em;}
+.hero .desc{font-size:13.8px;color:var(--dim);max-width:600px;line-height:1.6;margin-bottom:18px;}
+.hero .flowline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:600;}
+.hero .flowline span.n{background:var(--panel2);border:1px solid var(--border);padding:6px 13px;border-radius:20px;}
+.hero .flowline span.a{color:var(--dim2);}
+
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:26px;}
+.metric{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md);padding:16px 18px;}
+.metric .v{font-size:22px;font-weight:700;color:var(--accent);margin-bottom:3px;}
+.metric .l{font-size:11.5px;color:var(--dim);}
+
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--dim);margin-bottom:8px;}
+.legend span{display:flex;align-items:center;gap:6px;}
+.legend .dot{width:8px;height:8px;border-radius:50%;}
+
+/* ---------- GRAPH ---------- */
+.graphtoolbar{display:flex;align-items:center;gap:8px;margin-bottom:16px;}
+#graphcard{position:relative;background:var(--panel);border:1px solid var(--border);border-radius:var(--r-lg);padding:36px 20px;overflow:auto;}
+.grow{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin:0 0 34px;position:relative;z-index:2;}
+.grow:last-child{margin-bottom:0;}
+.rowlabel{position:absolute;left:20px;font-size:10px;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;top:-16px;}
+.node{background:var(--panel2);border:1px solid var(--border);border-radius:var(--r-md);padding:13px 18px;text-align:center;min-width:150px;cursor:pointer;transition:all .18s;position:relative;}
+.node .cat{width:7px;height:7px;border-radius:50%;position:absolute;top:10px;right:10px;}
+.node .t{font-size:13px;font-weight:650;}
+.node .s{display:block;font-size:10.5px;color:var(--dim);margin-top:3px;font-weight:400;}
+.node:hover{transform:translateY(-2px);border-color:var(--accent-line);box-shadow:0 6px 18px rgba(0,0,0,.22);}
+.node.dim{opacity:.28;}
+.node.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+svg.edges{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;}
+svg.edges path{stroke:var(--border);stroke-width:1.4;fill:none;transition:stroke .2s,stroke-width .2s,opacity .2s;}
+svg.edges path.hi{stroke:var(--accent);stroke-width:2.2;}
+svg.edges path.dim{opacity:.12;}
+svg.edges path.sec{stroke-dasharray:4 4;}
+
+/* ---------- TIMELINE / PIPELINE ---------- */
+.pipe{position:relative;padding-left:40px;margin:8px 0 30px;}
+.pipe::before{content:'';position:absolute;left:14px;top:6px;bottom:6px;width:2px;background:linear-gradient(var(--c-app),var(--border));}
+.pstep{position:relative;margin-bottom:14px;cursor:pointer;}
+.pstep:last-child{margin-bottom:0;}
+.pstep .num{position:absolute;left:-40px;top:2px;width:30px;height:30px;border-radius:50%;background:var(--c-app);color:#08101e;font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 5px var(--bg);z-index:1;}
+.pstep.enforce .num{background:var(--c-security);}
+.pstep .box{background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:11px 16px;transition:border-color .15s,transform .15s;}
+.pstep:hover .box{border-color:var(--accent-line);transform:translateX(2px);}
+.pstep.enforce .box{border-color:rgba(226,89,107,.4);background:rgba(226,89,107,.05);}
+.pstep .box b{font-size:13.3px;display:block;}
+.pstep .box code{font-size:11px;color:var(--dim);}
+
+/* ---------- CARDS / GRID ---------- */
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;}
+.ecard{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md);padding:15px 17px;cursor:pointer;transition:all .15s;}
+.ecard:hover{border-color:var(--accent-line);transform:translateY(-2px);box-shadow:var(--shadow);}
+.ecard .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.ecard b{font-size:13.5px;}
+.ecard code{font-size:10.5px;color:var(--dim);word-break:break-all;}
+.ecard p{font-size:12px;color:var(--dim);margin:6px 0 0;}
+.badge{font-size:9.5px;padding:2px 7px;border-radius:20px;font-weight:700;letter-spacing:.02em;}
+
+/* ---------- SECURITY ---------- */
+.sec-two{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+@media (max-width:900px){.sec-two{grid-template-columns:1fr;}}
+.htree{display:flex;flex-direction:column;align-items:center;gap:0;background:var(--panel);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px 16px;}
+.hnode{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:10px 20px;text-align:center;font-size:13px;font-weight:650;min-width:170px;}
+.hnode small{display:block;font-weight:400;color:var(--dim);font-size:10.5px;margin-top:2px;}
+.hline{width:2px;height:16px;background:var(--border);}
+.chipbox{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:10px;padding:12px;border:1px dashed var(--border);border-radius:10px;max-width:400px;}
+.chip{background:var(--panel2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:10.5px;color:var(--dim);}
+
+/* ---------- PROVIDERS ---------- */
+.pcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md);padding:16px 18px;}
+.pcard .ptop{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.pcard .ptop .picn{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;background:var(--accent-soft);}
+.pcard b{font-size:14px;}
+.pcard .row{display:flex;justify-content:space-between;font-size:11.5px;padding:4px 0;border-top:1px solid var(--border-soft);}
+.pcard .row .l{color:var(--dim);}
+
+/* ---------- DB ---------- */
+.dbwrap{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-lg);padding:26px;}
+.dbcore{text-align:center;background:linear-gradient(135deg,var(--accent-soft),transparent);border:1px solid var(--accent-line);border-radius:12px;padding:18px;max-width:340px;margin:0 auto 22px;}
+.dbcore b{font-size:15px;}
+.dbcore span{display:block;font-size:11.5px;color:var(--dim);margin-top:4px;}
+.dbcap{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;}
+.dbcap .item{background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:12px 14px;}
+.dbcap .item b{font-size:12.8px;display:block;margin-bottom:4px;}
+.dbcap .item .tbls{font-size:11px;color:var(--dim);line-height:1.6;}
+
+/* ---------- TECH STACK ---------- */
+.stackgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;}
+.stackcol{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-md);padding:15px 17px;}
+.stackcol h4{font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px;}
+.stackcol div{font-size:12.5px;padding:3px 0;color:var(--text);}
+
+/* ---------- DRAWER ---------- */
+#drawer{position:fixed;top:56px;right:0;width:400px;max-width:92vw;height:calc(100vh - 56px);background:var(--panel);border-left:1px solid var(--border);box-shadow:-12px 0 40px rgba(0,0,0,.35);transform:translateX(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);z-index:30;overflow-y:auto;padding:24px 26px;}
+#drawer.open{transform:translateX(0);}
+#drawer .dclose{position:absolute;top:20px;right:20px;background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;}
+#drawer h2{font-size:18px;margin:0 24px 2px 0;}
+#drawer .dpath{font-size:11.5px;color:var(--dim);font-family:'SF Mono',Consolas,monospace;margin-bottom:14px;display:block;}
+#drawer .dstatus{display:inline-block;font-size:10.5px;padding:2px 9px;border-radius:20px;margin-bottom:16px;font-weight:700;}
+#drawer .dsec{margin-top:16px;}
+#drawer .dsec b{display:block;font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+#drawer .dsec p{font-size:13px;margin:0;line-height:1.55;}
+#drawer .dsec ul{margin:0;padding-left:18px;font-size:12.5px;line-height:1.7;}
+#drawer .connchip{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--border);border-radius:20px;padding:4px 11px;font-size:12px;margin:3px 5px 0 0;cursor:pointer;}
+#drawer .connchip:hover{border-color:var(--accent-line);color:var(--accent);}
+
+code{font-family:'SF Mono',Consolas,monospace;}
+
+/* ---------- MOBILE ---------- */
+@media (max-width:900px){
+  html,body{overflow-x:hidden;}
+  #app{grid-template-columns:1fr;grid-template-rows:56px auto 1fr;width:100%;}
+  #topbar{padding:0 10px;gap:8px;}
+  .brand .tag{display:none;}
+  .brand .name{font-size:12.5px;}
+  .searchwrap{max-width:none;}
+  .kbd{display:none;}
+  #btnArch,#btnComp{display:none;}
+  .topctl{gap:5px;}
+  .tbtn{padding:6px 8px;font-size:11px;}
+  #sidebar{grid-row:2;display:flex;overflow-x:auto;padding:8px 10px;border-right:none;border-bottom:1px solid var(--border);white-space:nowrap;}
+  .navgroup{margin-bottom:0;margin-right:6px;display:flex;gap:4px;}
+  .navgroup-label{display:none;}
+  .navitem.active::before{display:none;}
+  #canvas{grid-row:3;padding:18px 16px 60px;}
+  #drawer{width:100vw;max-width:100vw;}
+}
+</style>
+</head>
+<body data-theme="dark">
+<div id="app">
+  <div id="topbar">
+    <div class="brand"><div class="mark">A</div><div><div class="name">Attendance Intelligence</div><div class="tag">Architecture Explorer</div></div></div>
+    <div class="searchwrap">
+      <svg class="si" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input id="searchInput" placeholder="Search components, files, APIs...">
+      <span class="kbd">⌘K</span>
+      <div id="searchResults"></div>
+    </div>
+    <div class="topctl">
+      <button class="tbtn" id="btnArch" onclick="quickNav('architecture')">Architecture</button>
+      <button class="tbtn" id="btnFlow" onclick="toggleDataFlow()">Data Flow</button>
+      <button class="tbtn" id="btnComp" onclick="quickNav('components')">Components</button>
+      <button class="icon-btn" title="Reset view (R)" onclick="resetGraph()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+      </button>
+      <button class="icon-btn" title="Toggle theme" onclick="toggleTheme()" id="themeBtn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <nav id="sidebar"></nav>
+  <main id="canvas"></main>
+</div>
+
+<aside id="drawer">
+  <button class="dclose" onclick="closeDrawer()">&times;</button>
+  <div id="drawerBody"></div>
+</aside>
+
+<script>
+/* =========================================================================
+   DATA — everything below is carried over from the verified architecture
+   already established for this project (backend/src/attendance + frontend/src).
+   No new services, APIs, databases, or frameworks are invented here —
+   this file only changes presentation/interaction, not the facts.
+   ========================================================================= */
+
+const CATS = {
+  app:{label:'Application', color:'var(--c-app)'},
+  ai:{label:'AI / Provider', color:'var(--c-ai)'},
+  data:{label:'Data', color:'var(--c-data)'},
+  security:{label:'Security', color:'var(--c-security)'},
+};
+
+const NODES = {
+  frontend:{name:'React Frontend', short:'upload · ask · export', cat:'app', row:0, file:'frontend/src/',
+    purpose:'Single-page demo app: connect with a token, upload a document, watch it process, ask a question, export results. Plain React useState — no router, no state library.',
+    resp:['App.tsx — the whole workflow lives in one component','api.ts — attaches Authorization + tenant headers to every call','Polls the ingestion-job status every 1.5s until it finishes','Components: AuthSetup, UploadPanel, ProcessingPanel, QueryPanel, AnswerPanel, ExportPanel'],
+    tech:'React · Vite · TypeScript', status:'Implemented'},
+  api:{name:'FastAPI Backend', short:'/auth · /documents · /queries · /exports', cat:'app', row:1, file:'api/',
+    purpose:'Single entry point for everything. Every request must carry a valid JWT plus product/tenant headers, checked before any route logic runs.',
+    resp:['POST /api/v1/documents — upload a file, starts ingestion','GET /api/v1/ingestion-jobs/{id} — poll processing status','POST /api/v1/queries — ask a question, get a cited answer','POST/GET /api/v1/exports — create + download exports','GET /health/live, /health/ready'],
+    tech:'FastAPI · Python', status:'Implemented'},
+  ingestion:{name:'Ingestion', short:'parse → normalize → chunk', cat:'app', row:2, file:'ingestion/',
+    purpose:'Turns an uploaded file into searchable, structured attendance data.',
+    resp:['Detects file type → CSV / XLSX / DOCX / PDF / OCR parser','Normalizes raw rows into one canonical attendance record','Splits document text into chunks for search','Same file twice (same checksum) is recognized and skipped'],
+    tech:'Python parsers', status:'Implemented'},
+  rag:{name:'Retrieval + RAG', short:'route → retrieve → generate → cite', cat:'app', row:2, file:'retrieval/, generation/',
+    purpose:'Where questions get answered — a real retrieval-augmented-generation pipeline.',
+    resp:['Routes question → structured SQL / document search / hybrid','Combines keyword + vector search, merges results','Sanitizes evidence before it reaches the LLM','LLM must cite sources — citations checked for accuracy','Confidence score gates whether the answer is shown'],
+    tech:'Custom retrieval + LLM orchestration', status:'Implemented'},
+  export:{name:'Export', short:'JSON · XLSX · PDF', cat:'app', row:2, file:'exports/',
+    purpose:'Lets a user download the attendance data they are authorized to see.',
+    resp:['Formats: JSON, XLSX, PDF','Every export job has an expiry time','Only pulls data the requesting user can access','Spreadsheet exports sanitized against formula injection'],
+    tech:'openpyxl (XLSX) · reportlab (PDF)', status:'Implemented'},
+  security:{name:'Security Layer', short:'RBAC + Row-Level Security', cat:'security', row:1.6, file:'security/, db/rls.py',
+    purpose:'Handles who is allowed to do what, enforced twice for safety.',
+    resp:['JWT login (self-contained demo auth, no external IdP)','Roles scoped per tenant/entity/module + classification ceiling','App code checks permissions before anything runs','PostgreSQL Row-Level Security checks again at the DB level'],
+    tech:'PyJWT (HS256) · PostgreSQL RLS', status:'Implemented'},
+  embeddings:{name:'Embeddings', short:'sentence-transformers', cat:'ai', row:3, file:'providers/embeddings/',
+    purpose:'Turns text into vectors so meaning-based search is possible, not just keyword matching.',
+    resp:['sentence-transformers (all-MiniLM-L6-v2), runs locally','No external API call — model cached after first download'],
+    tech:'sentence-transformers', status:'Implemented · Provider'},
+  llm:{name:'LLM', short:'OpenAI / Mock', cat:'ai', row:3, file:'providers/llm/',
+    purpose:'Generates the answer text, grounded in retrieved evidence.',
+    resp:["Default: deterministic 'Mock' provider, no API cost","Optional: OpenAI, enabled via LLM_PROVIDER=openai + API key","Instructed to only answer from supplied evidence"],
+    tech:'Mock (default) · OpenAI (optional)', status:'Mock Implemented · OpenAI Optional'},
+  ocr:{name:'OCR', short:'Tesseract', cat:'ai', row:3, file:'providers/ocr/',
+    purpose:'Reads text out of scanned/handwritten attendance sheets.',
+    resp:['Uses Tesseract OCR','Low-confidence output flagged for manual review, not trusted blindly'],
+    tech:'Tesseract', status:'Implemented · Provider'},
+  storage:{name:'File Storage', short:'local disk', cat:'ai', row:3, file:'providers/storage/',
+    purpose:'Keeps original uploaded files safe on disk.',
+    resp:['Local filesystem storage (Docker volume in compose setup)','Atomic writes (temp file + rename)'],
+    tech:'Local filesystem', status:'Implemented · Infrastructure'},
+  db:{name:'PostgreSQL + pgvector', short:'tables · FTS · vectors · RLS', cat:'data', row:4, file:'PostgreSQL 16',
+    purpose:'One database does everything this app needs — no separate search engine or vector database.',
+    resp:['Relational tables (documents, attendance, users, roles, audit…)','Full-text search built in (tsvector) — powers keyword search','pgvector extension — powers semantic/vector search','Row-Level Security enforces tenant isolation at the DB level'],
+    tech:'PostgreSQL 16 · pgvector', status:'Implemented · Infrastructure'},
+};
+
+const EDGES = [
+  ['frontend','api',false],['api','ingestion',false],['api','rag',false],['api','export',false],
+  ['api','security',true],['security','db',true],
+  ['ingestion','storage',false],['ingestion','db',false],['ingestion','ocr',false],
+  ['rag','embeddings',false],['rag','llm',false],['rag','db',false],
+  ['export','db',false],['export','storage',false],
+  ['embeddings','db',false],
+];
+
+const INGESTION_STEPS = [
+  {n:1,t:'Upload',file:'api/routes/documents.py',in:'Multipart file + entity/module/classification',out:'IngestionCommand'},
+  {n:2,t:'Checksum',file:'ingestion/checksum.py',in:'File bytes',out:'SHA-256 digest (dedup key)'},
+  {n:3,t:'Dedup check',file:'ingestion/service.py',in:'Checksum',out:'Reused version, or new one created (idempotent)'},
+  {n:4,t:'Parse',file:'ingestion/parsers/registry.py',in:'Raw file',out:'ParsedUnit[] (CSV/XLSX/DOCX/PDF/OCR)'},
+  {n:5,t:'Store file',file:'providers/storage/local.py',in:'Raw bytes',out:'Stored file path'},
+  {n:6,t:'Normalize',file:'ingestion/normalization.py',in:'ParsedUnit',out:'CanonicalAttendanceRecord'},
+  {n:7,t:'Chunk',file:'ingestion/chunking.py',in:'Unit text',out:'ChunkDraft[] (for search)'},
+  {n:8,t:'Persist',file:'db/models/',in:'Records + chunks',out:'Rows in Postgres + pgvector'},
+  {n:9,t:'Audit log',file:'audit/service.py',in:'Stage event',out:'AuditEvent row (append-only)'},
+];
+
+const RAG_STEPS = [
+  {n:1,t:'Question',file:'api/routes/queries.py',in:'Question text',out:'Query request'},
+  {n:2,t:'Scope check',file:'JWT + Row-Level Security',in:'JWT + headers',out:'AuthorizedScope', enforce:true},
+  {n:3,t:'Route',file:'retrieval/router.py',in:'Question',out:'Structured / Document / Hybrid mode'},
+  {n:4,t:'Retrieve',file:'retrieval/service.py',in:'Mode + question',out:'Evidence items (fused ranking)'},
+  {n:5,t:'Sanitize',file:'generation/context.py',in:'Evidence',out:'Sanitized generation context'},
+  {n:6,t:'Generate',file:'providers/llm/',in:'Context',out:'Provider output (draft answer)'},
+  {n:7,t:'Validate citations',file:'generation/citation_validator.py',in:'Provider output',out:'Validated citations'},
+  {n:8,t:'Score confidence',file:'generation/confidence.py',in:'Citations',out:'Confidence score/band'},
+  {n:9,t:'Answer + audit',file:'audit/service.py',in:'All of the above',out:'Cited answer response'},
+];
+
+const DATAFLOW_STEPS = [
+  {t:'Uploaded File',s:'.csv / .xlsx / .docx / .pdf / image'},
+  {t:'Parsed Data',s:'ParsedUnit'},
+  {t:'Normalized Attendance',s:'CanonicalAttendanceRecord'},
+  {t:'Stored Data',s:'AttendanceRecord + DocumentChunk + ChunkEmbedding'},
+  {t:'Retrieved Evidence',s:'EvidenceItem[] (SQL / keyword / vector, fused)'},
+  {t:'LLM Context',s:'Sanitized GenerationContext'},
+  {t:'Cited Answer',s:'AnswerResponse (citations + confidence)'},
+  {t:'Export',s:'JSON / XLSX / PDF artifact'},
+];
+
+const DB_TABLES = [
+  {group:'Identity & Tenancy', tables:'products, tenants, entities, users'},
+  {group:'RBAC', tables:'permissions, roles, role_permissions, user_role_assignments'},
+  {group:'Documents', tables:'documents, document_versions, ingestion_jobs, extracted_units'},
+  {group:'Search & Vectors', tables:'document_chunks (tsvector), chunk_embeddings (pgvector)'},
+  {group:'Attendance', tables:'attendance_records'},
+  {group:'Governance', tables:'audit_events (append-only), export_jobs'},
+];
+
+const TECHSTACK = {
+  Backend:['Python','FastAPI','SQLAlchemy','Alembic'],
+  Frontend:['React','Vite','TypeScript'],
+  Data:['PostgreSQL 16','pgvector'],
+  AI:['sentence-transformers','OpenAI (optional)','Tesseract'],
+  Infra:['Docker Compose'],
+};
+
+const METRICS = [
+  {v:'5', l:'input formats supported (CSV/XLSX/DOCX/PDF/OCR)'},
+  {v:'3+1', l:'retrieval modes (SQL, keyword, vector, hybrid)'},
+  {v:'3', l:'export formats (JSON, XLSX, PDF)'},
+  {v:'1', l:'database system (PostgreSQL + pgvector)'},
+  {v:'2', l:'enforcement layers (RBAC + Row-Level Security)'},
+];
+
+/* ========================================================================= */
+
+let currentSection = 'overview';
+let dataFlowMode = false;
+let selectedNode = null;
+
+const SIDEBAR = [
+  {label:'', items:[{id:'overview',name:'Overview'}]},
+  {label:'System', items:[{id:'architecture',name:'Architecture'}]},
+  {label:'Core', items:[{id:'ingestion',name:'Ingestion'},{id:'rag',name:'Query / RAG'},{id:'security',name:'Security'},{id:'components',name:'Components'}]},
+  {label:'Infrastructure', items:[{id:'database',name:'Database'},{id:'providers',name:'AI Providers'}]},
+  {label:'Engineering', items:[{id:'techstack',name:'Tech Stack'}]},
+];
+
+function renderSidebar(){
+  document.getElementById('sidebar').innerHTML = SIDEBAR.map(g => `
+    <div class="navgroup">
+      ${g.label ? `<div class="navgroup-label">${g.label}</div>` : ''}
+      ${g.items.map(it => `<div class="navitem${currentSection===it.id?' active':''}" onclick="nav('${it.id}')">${it.name}</div>`).join('')}
+    </div>
+  `).join('');
+}
+
+function nav(id){
+  currentSection = id;
+  document.getElementById('drawer').classList.remove('open');
+  renderSidebar();
+  renderCanvas();
+}
+function quickNav(id){ dataFlowMode=false; nav(id); }
+function toggleDataFlow(){ dataFlowMode = !dataFlowMode; currentSection='architecture'; renderSidebar(); renderCanvas(); }
+
+function renderCanvas(){
+  const c = document.getElementById('canvas');
+  document.getElementById('btnArch').classList.toggle('active', currentSection==='architecture' && !dataFlowMode);
+  document.getElementById('btnFlow').classList.toggle('active', dataFlowMode);
+  document.getElementById('btnComp').classList.toggle('active', currentSection==='components');
+  if(currentSection==='overview') return renderOverview(c);
+  if(currentSection==='architecture') return dataFlowMode ? renderDataFlow(c) : renderArchitecture(c);
+  if(currentSection==='ingestion') return renderPipeline(c,'Ingestion Pipeline','What happens, file by file, when a document is uploaded.',INGESTION_STEPS);
+  if(currentSection==='rag') return renderPipeline(c,'Query / RAG Pipeline','What happens, file by file, when a question is asked.',RAG_STEPS);
+  if(currentSection==='security') return renderSecurity(c);
+  if(currentSection==='components') return renderComponents(c);
+  if(currentSection==='database') return renderDatabase(c);
+  if(currentSection==='providers') return renderProviders(c);
+  if(currentSection==='techstack') return renderTechstack(c);
+}
+
+function head(title, desc){
+  return `<div class="sec-head"><h1>${title}</h1><p>${desc}</p></div>`;
+}
+
+function renderOverview(c){
+  c.innerHTML = `
+  <div class="section">
+    <div class="hero">
+      <div class="kicker">Enterprise RAG Attendance Microservice</div>
+      <h1>Attendance Intelligence Agent</h1>
+      <div class="desc">Built for the Vardaan Data Sciences AI Engineer take-home assignment (Candidate: Raj Sahu). Accepts attendance evidence in multiple formats, normalizes it into one canonical model, answers questions only from permitted &amp; available data with citations and confidence, and exports to JSON/Excel/PDF.</div>
+      <div class="flowline">
+        <span class="n">Upload</span><span class="a">→</span><span class="n">Process</span><span class="a">→</span>
+        <span class="n">Retrieve</span><span class="a">→</span><span class="n">Answer</span><span class="a">→</span><span class="n">Export</span>
+      </div>
+    </div>
+    <div class="metrics">
+      ${METRICS.map(m=>`<div class="metric"><div class="v">${m.v}</div><div class="l">${m.l}</div></div>`).join('')}
+    </div>
+    <div class="legend">
+      ${Object.entries(CATS).map(([k,v])=>`<span><span class="dot" style="background:${v.color}"></span>${v.label}</span>`).join('')}
+    </div>
+    <p style="font-size:12px;color:var(--dim2);max-width:640px">Click <b style="color:var(--dim)">Architecture</b> in the sidebar to explore the full system as an interactive graph, or jump straight to Ingestion, Query/RAG, Security, Components, Database, AI Providers or Tech Stack.</p>
+  </div>`;
+}
+
+function renderArchitecture(c){
+  c.innerHTML = head('System Architecture','Click any node to trace its connections. Everything else dims. Press R or the reset button to clear.') + `
+  <div id="graphcard">
+    <svg class="edges" id="edgeSvg"></svg>
+    ${[0,1,1.6,2,3,4].map(row => {
+      const ids = Object.keys(NODES).filter(id => NODES[id].row===row);
+      if(!ids.length) return '';
+      const rowNames = {0:'Frontend',1:'API',1.6:'Security',2:'Core Services',3:'AI / Infra Providers',4:'Data'};
+      return `<div class="grow" style="${row===1.6?'transform:scale(.92);opacity:.95;':''}"><span class="rowlabel">${rowNames[row]}</span>
+        ${ids.map(id => nodeHtml(id)).join('')}
+      </div>`;
+    }).join('')}
+  </div>`;
+  requestAnimationFrame(drawEdges);
+}
+
+function nodeHtml(id){
+  const n = NODES[id];
+  return `<div class="node" data-id="${id}" onclick="selectNode('${id}')">
+    <span class="cat" style="background:${CATS[n.cat].color}"></span>
+    <div class="t">${n.name}</div><span class="s">${n.short}</span>
+  </div>`;
+}
+
+function drawEdges(){
+  const svg = document.getElementById('edgeSvg');
+  const card = document.getElementById('graphcard');
+  if(!svg || !card) return;
+  const cr = card.getBoundingClientRect();
+  svg.setAttribute('width', card.scrollWidth);
+  svg.setAttribute('height', card.scrollHeight);
+  svg.innerHTML='';
+  EDGES.forEach(([a,b,sec])=>{
+    const na = card.querySelector(`.node[data-id="${a}"]`), nb = card.querySelector(`.node[data-id="${b}"]`);
+    if(!na||!nb) return;
+    const ar=na.getBoundingClientRect(), br=nb.getBoundingClientRect();
+    const x1=ar.left-cr.left+ar.width/2+card.scrollLeft, y1=ar.bottom-cr.top+card.scrollTop;
+    const x2=br.left-cr.left+br.width/2+card.scrollLeft, y2=br.top-cr.top+card.scrollTop;
+    const my=(y1+y2)/2;
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',`M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`);
+    path.dataset.a=a; path.dataset.b=b;
+    if(sec) path.classList.add('sec');
+    svg.appendChild(path);
+  });
+  applyHighlight();
+}
+
+function selectNode(id){
+  selectedNode = (selectedNode===id) ? null : id;
+  applyHighlight();
+  if(selectedNode) openDrawerFor(selectedNode);
+}
+function resetGraph(){ selectedNode=null; applyHighlight(); closeDrawer(); }
+
+function applyHighlight(){
+  const nodesEls = document.querySelectorAll('#graphcard .node');
+  const edgeEls = document.querySelectorAll('#edgeSvg path');
+  if(!selectedNode){
+    nodesEls.forEach(n=>n.classList.remove('dim','active'));
+    edgeEls.forEach(e=>e.classList.remove('dim','hi'));
+    return;
+  }
+  const neighbors = new Set([selectedNode]);
+  EDGES.forEach(([a,b])=>{ if(a===selectedNode) neighbors.add(b); if(b===selectedNode) neighbors.add(a); });
+  nodesEls.forEach(n=>{
+    const id = n.dataset.id;
+    n.classList.toggle('active', id===selectedNode);
+    n.classList.toggle('dim', !neighbors.has(id));
+  });
+  edgeEls.forEach(e=>{
+    const rel = e.dataset.a===selectedNode || e.dataset.b===selectedNode;
+    e.classList.toggle('hi', rel);
+    e.classList.toggle('dim', !rel);
+  });
+}
+
+function renderDataFlow(c){
+  c.innerHTML = head('Data Flow','How one document (and one question) changes shape as it moves through the system.') + `
+  <div class="pipe">
+    ${DATAFLOW_STEPS.map((s,i)=>`<div class="pstep"><div class="num">${i+1}</div><div class="box"><b>${s.t}</b><code>${s.s}</code></div></div>`).join('')}
+  </div>`;
+}
+
+function renderPipeline(c,title,desc,steps){
+  c.innerHTML = head(title,desc) + `
+  <div class="pipe">
+    ${steps.map(s=>`<div class="pstep${s.enforce?' enforce':''}" onclick='openStepDrawer(${JSON.stringify(s).replace(/'/g,"&#39;")})'>
+      <div class="num">${s.enforce?'🔒':s.n}</div>
+      <div class="box"><b>${s.t}</b><code>${s.file}</code></div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function openStepDrawer(s){
+  document.getElementById('drawerBody').innerHTML = `
+    <h2>${s.t}</h2>
+    <span class="dpath">${s.file}</span>
+    <div class="dsec"><b>Input</b><p>${s.in}</p></div>
+    <div class="dsec"><b>Output</b><p>${s.out}</p></div>
+  `;
+  document.getElementById('drawer').classList.add('open');
+}
+
+function renderSecurity(c){
+  c.innerHTML = head('Security & Isolation','How access is scoped (left), and where every scope actually gets checked (right).') + `
+  <div class="sec-two">
+    <div class="htree">
+      <div class="hnode">Product<small>top-level tenant of the platform</small></div><div class="hline"></div>
+      <div class="hnode">Tenant<small>an organization inside a product</small></div><div class="hline"></div>
+      <div class="hnode">Entity<small>department / business unit (can nest)</small></div><div class="hline"></div>
+      <div class="hnode">User<small>identified by JWT subject claim</small></div><div class="hline"></div>
+      <div class="hnode">Role<small>scoped to entity + module, classification ceiling, optional time window</small></div><div class="hline"></div>
+      <div class="chipbox">
+        <span class="chip">document:read</span><span class="chip">document:write</span>
+        <span class="chip">attendance:read</span><span class="chip">attendance:write</span>
+        <span class="chip">attendance:export</span><span class="chip">audit:write</span>
+        <span class="chip">security:context</span>
+      </div>
+    </div>
+    <div class="pipe">
+      <div class="pstep"><div class="num">1</div><div class="box"><b>Request arrives</b><code>Bearer JWT + tenant headers</code></div></div>
+      <div class="pstep"><div class="num">2</div><div class="box"><b>Authentication</b><code>security/authentication.py</code></div></div>
+      <div class="pstep"><div class="num">3</div><div class="box"><b>Authorization</b><code>security/authorization.py</code></div></div>
+      <div class="pstep enforce"><div class="num">🔒</div><div class="box"><b>Enforcement — App code</b><code>permission check before any logic runs</code></div></div>
+      <div class="pstep enforce"><div class="num">🔒</div><div class="box"><b>Enforcement — Postgres RLS</b><code>db/rls.py</code></div></div>
+      <div class="pstep"><div class="num">4</div><div class="box"><b>Scoped data returned</b><code>LLM never sees or decides access</code></div></div>
+    </div>
+  </div>`;
+}
+
+function renderComponents(c){
+  c.innerHTML = head('Components','Click any card to open full detail.') + `<div class="grid3">
+    ${Object.keys(NODES).map(id=>{
+      const n = NODES[id];
+      return `<div class="ecard" onclick="openDrawerFor('${id}')">
+        <div class="top"><b>${n.name}</b><span class="cat" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${CATS[n.cat].color}"></span></div>
+        <code>${n.file}</code><p>${n.short}</p>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderDatabase(c){
+  c.innerHTML = head('Database','A single PostgreSQL instance is the structured store, the full-text search engine, and the vector index.') + `
+  <div class="dbwrap">
+    <div class="dbcore"><b>PostgreSQL 16 + pgvector</b><span>relational · full-text search · vector search · row-level security</span></div>
+    <div class="dbcap">
+      ${DB_TABLES.map(t=>`<div class="item"><b>${t.group}</b><div class="tbls">${t.tables}</div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderProviders(c){
+  const provs = [
+    {id:'embeddings', icon:'🔢'},{id:'llm', icon:'🤖'},{id:'ocr', icon:'👁️'},{id:'storage', icon:'💾'},
+  ];
+  c.innerHTML = head('AI & Infra Providers','Every provider behind the retrieval, generation, and ingestion pipelines.') + `<div class="grid3">
+    ${provs.map(p=>{
+      const n = NODES[p.id];
+      return `<div class="pcard" style="cursor:pointer" onclick="openDrawerFor('${p.id}')">
+        <div class="ptop"><div class="picn">${p.icon}</div><b>${n.name}</b></div>
+        <div class="row"><span class="l">Technology</span><span>${n.tech}</span></div>
+        <div class="row"><span class="l">Status</span><span>${n.status}</span></div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderTechstack(c){
+  c.innerHTML = head('Technology Stack','Detected from pyproject.toml, package.json, and Dockerfiles.') + `
+  <div class="stackgrid">
+    ${Object.entries(TECHSTACK).map(([k,v])=>`<div class="stackcol"><h4>${k}</h4>${v.map(x=>`<div>${x}</div>`).join('')}</div>`).join('')}
+  </div>`;
+}
+
+/* ---------- DRAWER ---------- */
+function statusColor(status){
+  if(status.includes('Optional')) return 'var(--c-ext)';
+  if(status.includes('Infrastructure')) return 'var(--c-data)';
+  if(status.includes('Provider')) return 'var(--c-ai)';
+  return 'var(--c-app)';
+}
+function openDrawerFor(id){
+  const n = NODES[id];
+  if(!n) return;
+  const conns = EDGES.filter(([a,b])=>a===id||b===id).map(([a,b])=>a===id?b:a);
+  document.getElementById('drawerBody').innerHTML = `
+    <h2>${n.name}</h2>
+    <span class="dpath">${n.file}</span><br>
+    <span class="dstatus" style="background:${statusColor(n.status)}22;color:${statusColor(n.status)}">${n.status}</span>
+    <div class="dsec"><b>Purpose</b><p>${n.purpose}</p></div>
+    <div class="dsec"><b>Responsibilities</b><ul>${n.resp.map(r=>`<li>${r}</li>`).join('')}</ul></div>
+    <div class="dsec"><b>Connections</b><div>${conns.map(cid=>`<span class="connchip" onclick="openDrawerFor('${cid}')">${NODES[cid].name}</span>`).join('')||'—'}</div></div>
+    <div class="dsec"><b>Technology</b><p>${n.tech}</p></div>
+  `;
+  document.getElementById('drawer').classList.add('open');
+  if(currentSection==='architecture' && !dataFlowMode){
+    selectedNode = id;
+    applyHighlight();
+  }
+}
+function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); }
+
+/* ---------- SEARCH ---------- */
+function buildIndex(){
+  const idx = [];
+  Object.entries(NODES).forEach(([id,n])=>idx.push({label:n.name, file:n.file, desc:n.short, action:()=>{nav('architecture'); openDrawerFor(id);}}));
+  INGESTION_STEPS.forEach(s=>idx.push({label:s.t, file:s.file, desc:'Ingestion step '+s.n, action:()=>{nav('ingestion'); openStepDrawer(s);}}));
+  RAG_STEPS.forEach(s=>idx.push({label:s.t, file:s.file, desc:'Query/RAG step '+s.n, action:()=>{nav('rag'); openStepDrawer(s);}}));
+  DB_TABLES.forEach(t=>idx.push({label:t.group, file:t.tables, desc:'Database tables', action:()=>nav('database')}));
+  Object.entries(TECHSTACK).forEach(([k,v])=>v.forEach(x=>idx.push({label:x, file:k, desc:'Technology stack', action:()=>nav('techstack')})));
+  idx.push({label:'RBAC & Isolation', file:'security/, db/rls.py', desc:'Product→Tenant→Entity→User→Role', action:()=>nav('security')});
+  return idx;
+}
+const SEARCH_INDEX = buildIndex();
+let searchSel = -1;
+const input = document.getElementById('searchInput');
+const results = document.getElementById('searchResults');
+function runSearch(){
+  const q = input.value.trim().toLowerCase();
+  searchSel = -1;
+  if(!q){ results.classList.remove('show'); return; }
+  const hits = SEARCH_INDEX.filter(h => (h.label+' '+h.file+' '+h.desc).toLowerCase().includes(q)).slice(0,20);
+  results.innerHTML = hits.length ? hits.map((h,i)=>`<div class="sr-item" data-i="${i}" onclick="pickSearch(${i})"><b>${h.label}</b><div class="m"><code>${h.file}</code><span>${h.desc}</span></div></div>`).join('') : '<div class="sr-item" style="color:var(--dim)">No matches</div>';
+  results.classList.add('show');
+  window._hits = hits;
+}
+function pickSearch(i){
+  const h = window._hits[i];
+  if(h){ h.action(); }
+  results.classList.remove('show');
+  input.value='';
+}
+input.addEventListener('input', runSearch);
+input.addEventListener('keydown', e=>{
+  const items = results.querySelectorAll('.sr-item');
+  if(e.key==='ArrowDown'){ e.preventDefault(); searchSel=Math.min(searchSel+1, items.length-1); updateSel(items); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); searchSel=Math.max(searchSel-1,0); updateSel(items); }
+  else if(e.key==='Enter'){ if(searchSel>=0) pickSearch(searchSel); }
+  else if(e.key==='Escape'){ results.classList.remove('show'); input.blur(); }
+});
+function updateSel(items){ items.forEach((it,i)=>it.classList.toggle('kbdsel', i===searchSel)); }
+document.addEventListener('click', e=>{ if(!e.target.closest('.searchwrap')) results.classList.remove('show'); });
+
+/* ---------- THEME ---------- */
+function toggleTheme(){
+  const b = document.body;
+  const cur = b.getAttribute('data-theme');
+  b.setAttribute('data-theme', cur==='dark' ? 'light' : 'dark');
+  setTimeout(drawEdges, 50);
+}
+
+/* ---------- KEYBOARD SHORTCUTS ---------- */
+document.addEventListener('keydown', e=>{
+  const typing = ['INPUT','TEXTAREA'].includes(document.activeElement.tagName);
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); input.focus(); return; }
+  if(e.key==='Escape'){ closeDrawer(); results.classList.remove('show'); return; }
+  if(!typing && e.key.toLowerCase()==='r'){ resetGraph(); }
+});
+
+window.addEventListener('resize', ()=>{ if(currentSection==='architecture' && !dataFlowMode) drawEdges(); });
+
+/* ---------- INIT ---------- */
+renderSidebar();
+renderCanvas();
+</script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+agent_id,tool_name,description
+AG-001,Retriever,Semantic search tool
+AG-002,Planner,Query planning tool

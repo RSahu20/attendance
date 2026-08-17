@@ -1,0 +1,5 @@
+Date,Employee ID,Employee Name,Status,Department,Check In,Check Out,Total Hours,Attendance %
+2026-08-01,SYN-001,Asha Fiction,Present,Engineering,09:00,17:00,8,100
+2026-08-01,SYN-002,Mira Example,Absent,Support,,,0,0
+2026-08-02,SYN-003,Noor Sample,Leave,Finance,,,,100
+2026-08-02,SYN-004,Ira Demo,WFH,Engineering,09:15,17:15,8,100
